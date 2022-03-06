@@ -105,8 +105,17 @@ class Frame extends JFrame {
 
     }
     public static class Vector{
-        double x;
-        double y;
+        public double x;
+        public double y;
+
+        public Vector(){
+            x = 0.0;
+            y = 0.0;
+        }
+        public Vector(Vector another){
+            x = another.x;
+            y = another.y;
+        }
     }
 
     private double mouse_position;
@@ -116,6 +125,7 @@ class Frame extends JFrame {
 
     private final int width = 800;
     private final int height = 800;
+    private final double step_delta = 0.31;
     private final double angle_delta = 3.5;
     private final Map map;
     private final BufferedImage image;
@@ -182,12 +192,31 @@ class Frame extends JFrame {
                 } else if (key_code == KeyEvent.VK_LEFT){
                     rotateVector(dir, -angle_delta);
                     rotateVector(plane, -angle_delta);
-                } else if (key_code == KeyEvent.VK_DOWN){
-                    map.getPlayer().x -= dir.x;
-                    map.getPlayer().y -= dir.y;
-                } else if (key_code == KeyEvent.VK_UP){
-                    map.getPlayer().x += dir.x;
-                    map.getPlayer().y += dir.y;
+                } else if (key_code == KeyEvent.VK_UP || key_code == KeyEvent.VK_DOWN
+                            || key_code == KeyEvent.VK_W || key_code == KeyEvent.VK_S){
+                    double delta_x = dir.x * step_delta;
+                    double delta_y = dir.y * step_delta;
+                    if (key_code == KeyEvent.VK_DOWN || key_code == KeyEvent.VK_S){
+                        delta_x *= -1;
+                        delta_y *= -1;
+                    }
+                    if (map.getCell((int)(map.getPlayer().x + delta_x), (int)(map.getPlayer().y + delta_y)) != Map.Cell.EMPTY){
+                        return;
+                    }
+                    map.getPlayer().x += delta_x;
+                    map.getPlayer().y += delta_y;
+                } else if (key_code == KeyEvent.VK_A || key_code == KeyEvent.VK_D){
+                    Vector vector = new Vector(dir);
+                    if (key_code == KeyEvent.VK_A){
+                        rotateVector(vector, -90);
+                    } else {
+                        rotateVector(vector, 90);
+                    }
+                    if (map.getCell((int)(map.getPlayer().x + vector.x * step_delta), (int)(map.getPlayer().y + vector.y * step_delta)) != Map.Cell.EMPTY){
+                        return;
+                    }
+                    map.getPlayer().x += vector.x * step_delta;
+                    map.getPlayer().y += vector.y * step_delta;
                 }
                 draw();
             }
