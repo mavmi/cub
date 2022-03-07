@@ -1,5 +1,6 @@
 package cub;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -8,7 +9,10 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 
 class Map {
@@ -101,8 +105,9 @@ class Frame extends JFrame {
     public enum Color{
         WHITE,
         BLACK,
-        GREEN
-
+        GREEN,
+        FLOOR,
+        CEILING
     }
     public static class Vector{
         public double x;
@@ -129,12 +134,20 @@ class Frame extends JFrame {
     private final double angle_delta = 3.5;
     private final Map map;
     private final BufferedImage image;
+    private final BufferedImage NO;
+    private final BufferedImage EA;
+    private final BufferedImage SO;
+    private final BufferedImage WE;
 
     private final JPanel panel;
 
-    public Frame(Map map){
+    public Frame(Map map) throws IOException {
         dir = new Vector();
         plane = new Vector();
+        NO = ImageIO.read(new File("src/cub/textures/NO.jpeg"));
+        EA = ImageIO.read(new File("src/cub/textures/EA.jpeg"));
+        SO = ImageIO.read(new File("src/cub/textures/SO.jpeg"));
+        WE = ImageIO.read(new File("src/cub/textures/WE.jpeg"));
 
         mouse_position = MouseInfo.getPointerInfo().getLocation().getX();
         getContentPane().setCursor(Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB),
@@ -254,64 +267,45 @@ class Frame extends JFrame {
             double camera_x = 2 * x / (double)width - 1;
             double ray_dir_x = dir.x + plane.x * camera_x;
             double ray_dir_y = dir.y + plane.y * camera_x;
-
             int map_x = (int)map.getPlayer().x;
             int map_y = (int)map.getPlayer().y;
-
             double side_dist_x;
             double side_dist_y;
-
             double delta_dist_x = (ray_dir_x == 0) ? 1e30 : Math.abs(1 / ray_dir_x);
             double delta_dist_y = (ray_dir_y == 0) ? 1e30 : Math.abs(1 / ray_dir_y);
 
-            double wall_dist;
-
             int step_x;
             int step_y;
-
-            int hit = 0;
             int side = 0;
-            if (ray_dir_x < 0)
-            {
+            double wall_dist;
+            if (ray_dir_x < 0) {
                 step_x = -1;
                 side_dist_x = (map.getPlayer().x - map_x) * delta_dist_x;
-            }
-            else
-            {
+            } else {
                 step_x = 1;
                 side_dist_x = (map_x + 1.0 - map.getPlayer().x) * delta_dist_x;
             }
-            if(ray_dir_y < 0)
-            {
+            if (ray_dir_y < 0) {
                 step_y = -1;
                 side_dist_y = (map.getPlayer().y - map_y) * delta_dist_y;
-            }
-            else
-            {
+            } else {
                 step_y = 1;
                 side_dist_y = (map_y + 1.0 - map.getPlayer().y) * delta_dist_y;
             }
-            
-            while (hit == 0)
-            {
-                if(side_dist_x < side_dist_y)
-                {
+
+            do {
+                if (side_dist_x < side_dist_y) {
                     side_dist_x += delta_dist_x;
                     map_x += step_x;
                     side = 0;
-                }
-                else
-                {
+                } else {
                     side_dist_y += delta_dist_y;
                     map_y += step_y;
                     side = 1;
                 }
-                if(map.getCell(map_x, map_y) == Map.Cell.WALL){
-                    hit = 1;
-                }
-            }
+            } while (map.getCell(map_x, map_y) != Map.Cell.WALL);
 
-            if(side == 0) {
+            if (side == 0) {
                 wall_dist = (side_dist_x - delta_dist_x);
             } else {
                 wall_dist = (side_dist_y - delta_dist_y);
@@ -327,20 +321,43 @@ class Frame extends JFrame {
                 draw_end = height - 1;
             }
 
-            drawLine(x, draw_start, draw_end);
+            double wall_x;
+            if(side == 0){
+                wall_x = map.getPlayer().y + wall_dist * ray_dir_y;
+            } else {
+                wall_x = map.getPlayer().x + wall_dist * ray_dir_x;
+            }
+            wall_x -= (int)wall_x;
+
+            BufferedImage image;
+            if (side == 0 && ray_dir_x < 0) {
+                image = WE;
+            } else if (side == 0 && ray_dir_x >= 0) {
+                image = EA;
+            } else if (side == 1 && ray_dir_y < 0) {
+                image = NO;
+            } else {
+                image = SO;
+            }
+
+            drawLine(x, (int)(image.getWidth() * wall_x), draw_start, draw_end, image, (int)(height / wall_dist));
         }
         repaint();
     }
-    private void drawLine(int x, int start, int end){
+    private void drawLine(int x, int text_x, int start, int end, BufferedImage image, int wall_height){
         int y = 0;
+        double text_y = 0;
+        double delta = (double)image.getHeight() / wall_height;
+
         while (y < start){
-            setColor(x, y++, Color.BLACK);
+            setColor(x, y++, Color.CEILING);
         }
-        while (y < end){
-            setColor(x, y++, Color.GREEN);
+        while (y < end && text_y < image.getHeight()){
+            setColor(x, y++, image.getRGB(text_x, (int)text_y));
+            text_y += delta;
         }
         while (y < height){
-            setColor(x, y++, Color.BLACK);
+            setColor(x, y++, Color.FLOOR);
         }
     }
 
@@ -369,6 +386,10 @@ class Frame extends JFrame {
                 return 0xFFFFFF;
             case GREEN:
                 return 0x00FF00;
+            case CEILING:
+                return 0xB2AEAD;
+            case FLOOR:
+                return 0x4C4B4B;
             default:
                 return 0x000000;
         }
